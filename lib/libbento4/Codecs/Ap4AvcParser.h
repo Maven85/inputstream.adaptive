@@ -37,6 +37,7 @@
 #include "Ap4DataBuffer.h"
 #include "Ap4NalParser.h"
 #include "Ap4Array.h"
+#include "Ap4Utils.h"
 
 /*----------------------------------------------------------------------
 |   constants
@@ -90,7 +91,8 @@ typedef struct {
 struct AP4_AvcSequenceParameterSet {
     AP4_AvcSequenceParameterSet();
     
-    void GetInfo(unsigned int& width, unsigned int& height);
+    bool GetInfo(unsigned int& width, unsigned int& height);
+    bool GetVUIInfo(unsigned int& fps_ticks, unsigned int& fps_scale, float &aspect);
     
     AP4_DataBuffer raw_bytes;
 
@@ -131,6 +133,27 @@ struct AP4_AvcSequenceParameterSet {
     unsigned int frame_crop_right_offset;
     unsigned int frame_crop_top_offset;
     unsigned int frame_crop_bottom_offset;
+    unsigned int vui_parameters_present_flag;
+    unsigned int aspect_ratio_info_present_flag;
+    unsigned int aspect_ratio_idc;
+    unsigned int sar_width;
+    unsigned int sar_height;
+    unsigned int overscan_info_present_flag;
+    unsigned int overscan_appropriate_flag;
+    unsigned int video_signal_type_present_flag;
+    unsigned int video_format;
+    unsigned int video_full_range_flag;
+    unsigned int colour_description_present_flag;
+    unsigned int colour_primaries;
+    unsigned int transfer_characteristics;
+    unsigned int matrix_coefficients;
+    unsigned int chroma_loc_info_present_flag;
+    unsigned int chroma_sample_loc_type_top_field;
+    unsigned int chroma_sample_loc_type_bottom_field;
+    unsigned int timing_info_present_flag;
+    unsigned int num_units_in_tick;
+    unsigned int time_scale;
+    unsigned int fixed_frame_rate_flag;
 };
 
 struct AP4_AvcPictureParameterSet {
@@ -235,6 +258,11 @@ public:
     AP4_AvcFrameParser();
    ~AP4_AvcFrameParser();
     
+   static AP4_Result ParseFrameForSPS(const AP4_Byte* data,
+     AP4_Size data_size,
+     AP4_UI08 naluLengthSize,
+     AP4_AvcSequenceParameterSet &sps);
+
     /**
      * Feed some data to the parser and look for the next NAL Unit.
      *
@@ -292,7 +320,10 @@ public:
                                 unsigned int                  nal_unit_type,
                                 unsigned int                  nal_ref_idc,
                                 AP4_AvcSliceHeader&           slice_header);
-
+    static unsigned int
+      ReadGolomb(AP4_BitReader& bits);
+    static int
+      SignedGolomb(unsigned int code_num);
 private:
     // methods
     bool SameFrame(unsigned int nal_unit_type_1, unsigned int nal_ref_idc_1, AP4_AvcSliceHeader& sh1,

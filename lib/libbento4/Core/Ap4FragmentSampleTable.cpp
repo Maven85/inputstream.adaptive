@@ -47,6 +47,7 @@ AP4_FragmentSampleTable::AP4_FragmentSampleTable(AP4_ContainerAtom* traf,
                                                  AP4_ByteStream*    sample_stream,
                                                  AP4_Position       moof_offset,
                                                  AP4_Position       mdat_payload_offset,
+                                                 AP4_UI64           mdat_payload_size,
                                                  AP4_UI64           dts_origin) :
     m_Duration(0)
 {
@@ -73,6 +74,7 @@ AP4_FragmentSampleTable::AP4_FragmentSampleTable(AP4_ContainerAtom* traf,
     }
     
     // process all the trun atoms
+    AP4_UI32 trun_flags(0);
     for (AP4_List<AP4_Atom>::Item* item = traf->GetChildren().FirstItem();
                                    item;
                                    item = item->GetNext()) {
@@ -88,9 +90,13 @@ AP4_FragmentSampleTable::AP4_FragmentSampleTable(AP4_ContainerAtom* traf,
                                             mdat_payload_offset,
                                             dts_origin);
                 if (AP4_FAILED(result)) return;
+                trun_flags |= trun->GetFlags();
             }
         }
-    }    
+    }
+    // Hack if we have a single sample and default sample size is wrong (hbo ttml)
+    if (m_Samples.ItemCount() == 1 && (trun_flags & AP4_TRUN_FLAG_SAMPLE_SIZE_PRESENT) == 0)
+      m_Samples[0].SetSize(mdat_payload_size);
 }
 
 /*----------------------------------------------------------------------
@@ -130,7 +136,7 @@ AP4_FragmentSampleTable::AddTrun(AP4_TrunAtom*   trun,
         data_offset += trun->GetDataOffset();
     }         
     // MS hack
-    if (data_offset == moof_offset) {
+    if (data_offset < payload_offset) {
         data_offset = payload_offset;
     } else {
         payload_offset = data_offset;
@@ -291,19 +297,36 @@ AP4_FragmentSampleTable::GetSampleChunkPosition(AP4_Ordinal  sample_index,
 |   AP4_FragmentSampleTable::GetSampleIndexForTimeStamp
 +---------------------------------------------------------------------*/
 AP4_Result 
-AP4_FragmentSampleTable::GetSampleIndexForTimeStamp(AP4_UI64     /*ts*/, 
+AP4_FragmentSampleTable::GetSampleIndexForTimeStamp(AP4_UI64     ts, 
                                                     AP4_Ordinal& sample_index)
 {
-    sample_index = 0; // TODO
-    return AP4_SUCCESS;
+  if (!m_Samples.ItemCount())
+    return AP4_ERROR_NOT_ENOUGH_DATA;
+
+  sample_index = 0;
+  while (sample_index < m_Samples.ItemCount() && m_Samples[sample_index].GetCts() + m_Samples[sample_index].GetDuration() < ts)
+    ++sample_index;
+
+  if (sample_index == m_Samples.ItemCount())
+    return AP4_ERROR_NOT_ENOUGH_DATA;
+
+  return AP4_SUCCESS;
 }
 
 /*----------------------------------------------------------------------
 |   AP4_FragmentSampleTable::GetNearestSyncSampleIndex
 +---------------------------------------------------------------------*/
 AP4_Ordinal  
-AP4_FragmentSampleTable::GetNearestSyncSampleIndex(AP4_Ordinal /*sample_index*/, bool /*before*/)
+AP4_FragmentSampleTable::GetNearestSyncSampleIndex(AP4_Ordinal sample_index, bool before)
 {
-    return 0; // TODO
+  if (sample_index >= m_Samples.ItemCount())
+    return sample_index;
+
+  AP4_Ordinal end(before ? 0 : m_Samples.ItemCount());
+
+  while (sample_index != end && !m_Samples[sample_index].IsSync())
+    sample_index = sample_index + (before ? -1 : 1);
+
+  return sample_index;
 }
 

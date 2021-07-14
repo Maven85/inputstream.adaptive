@@ -85,6 +85,8 @@ public:
     AP4_Result SetSampleIndex(AP4_UI32 track_id, AP4_UI32 sample_index);
     
     AP4_Result SeekTo(AP4_UI32 time_ms, AP4_UI32* actual_time_ms = 0);
+
+    AP4_Result SeekSample(AP4_UI32 track_id, AP4_UI64 ts, AP4_Ordinal &sample_index, bool preceedingSync);
     
     // accessors
     AP4_Size GetBufferFullness() { return m_BufferFullness; }
@@ -159,7 +161,8 @@ protected:
     virtual AP4_Result ProcessTrack(AP4_Track* track);
     virtual AP4_Result ProcessMoof(AP4_ContainerAtom* moof, 
                                    AP4_Position       moof_offset, 
-                                   AP4_Position       mdat_payload_offset);
+                                   AP4_Position       mdat_payload_offset,
+                                   AP4_UI64           mdat_payload_size);
     
     // methods
     Tracker*   FindTracker(AP4_UI32 track_id);
@@ -169,8 +172,10 @@ protected:
     AP4_Result ReadNextSample(AP4_Sample&     sample, 
                               AP4_DataBuffer* sample_data,
                               AP4_UI32&       track_id);
+    AP4_Result GetSample(AP4_UI32 track_id, AP4_Sample &sample, AP4_Ordinal sample_index);
     void       FlushQueue(Tracker* tracker);
     void       FlushQueues();
+    void       Reset();
     
     // members
     AP4_Movie&          m_Movie;
