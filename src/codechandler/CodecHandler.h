@@ -33,6 +33,7 @@ public:
    * \return True if some info is changed, otherwise false
    */
   virtual bool GetInformation(kodi::addon::InputstreamInfo& info);
+  virtual bool ExtraDataToAnnexB() { return false; };
 
   /*!
    * \brief Check for extradata data format, if needed it will be converted

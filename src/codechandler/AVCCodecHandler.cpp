@@ -69,13 +69,56 @@ bool AVCCodecHandler::CheckExtraData(std::vector<uint8_t>& extraData, bool isReq
   // Make sure that extradata is in the required format
   if (isRequiredAnnexB && !UTILS::IsAnnexB(extraData))
   {
-    extraData = UTILS::AvcToAnnexb(extraData);
-    return true;
+    return ExtraDataToAnnexB();
   }
   if (!isRequiredAnnexB && UTILS::IsAnnexB(extraData))
   {
     extraData = UTILS::AnnexbToAvc(extraData);
     return true;
+  }
+
+  return false;
+}
+
+bool AVCCodecHandler::ExtraDataToAnnexB()
+{
+  if (AP4_AvcSampleDescription* avcSampleDescription =
+          AP4_DYNAMIC_CAST(AP4_AvcSampleDescription, m_sampleDescription))
+  {
+    //calculate the size for annexb
+    AP4_Size sz(0);
+    AP4_Array<AP4_DataBuffer>& pps(avcSampleDescription->GetPictureParameters());
+    for (unsigned int i{0}; i < pps.ItemCount(); ++i)
+      sz += 4 + pps[i].GetDataSize();
+    AP4_Array<AP4_DataBuffer>& sps(avcSampleDescription->GetSequenceParameters());
+    for (unsigned int i{0}; i < sps.ItemCount(); ++i)
+      sz += 4 + sps[i].GetDataSize();
+
+    if (sz > 0)
+    {
+      m_extraData.SetDataSize(sz);
+      AP4_Byte* cursor(m_extraData.UseData());
+
+      for (unsigned int i{0}; i < sps.ItemCount(); ++i)
+      {
+        cursor[0] = 0;
+        cursor[1] = 0;
+        cursor[2] = 0;
+        cursor[3] = 1;
+        memcpy(cursor + 4, sps[i].GetData(), sps[i].GetDataSize());
+        cursor += sps[i].GetDataSize() + 4;
+      }
+      for (unsigned int i{0}; i < pps.ItemCount(); ++i)
+      {
+        cursor[0] = 0;
+        cursor[1] = 0;
+        cursor[2] = 0;
+        cursor[3] = 1;
+        memcpy(cursor + 4, pps[i].GetData(), pps[i].GetDataSize());
+        cursor += pps[i].GetDataSize() + 4;
+      }
+      return true;
+    }
   }
 
   return false;
